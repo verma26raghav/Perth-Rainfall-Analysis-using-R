@@ -1,0 +1,279 @@
+---
+title: "Cleaning up and exploring data using R"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+# 1 Tasks
+
+1. Use table() on the species variable of the iris dataset to count the instances at each level.
+
+```{r}
+library(datasets)
+data(iris)
+table(iris$Species)
+```
+
+i.e. there are 50 instances of each species.
+
+2. Using hist() to look at Petal.Width bins
+
+```{r}
+H <- hist(iris$Petal.Width)
+```
+
+```{r}
+H
+```
+
+The counts are 34, 14, 2, 0, 7, 8, 21, 16, 14, 11, 9, 11, 3.
+
+or 
+
+```{r}
+H$counts
+```
+3. Read the weather in nycflights and change origin to be factor.
+
+```{r}
+nyc_weather <- read.csv("https://raw.githubusercontent.com/hadley/nycflights13/master/data-raw/weather.csv")
+head(nyc_weather)
+```
+
+Change 'origin' from <chr> to factor
+
+```{r}
+nyc_weather$origin <- factor(nyc_weather$origin)
+head(nyc_weather)
+```
+
+(or alternatively -- because the question was confusing -- just using the nycflights data)
+
+```{r}
+library(nycflights13)
+data(flights)
+flights$origin <- factor(flights$origin)
+```
+
+4.  Number of different flights from each airport
+
+```{r}
+#install.packages("nycflights13")
+library(nycflights13)
+head(flights)  # just views the head of 'flights' that's now been imported
+```
+
+The following gives the number of flights for carriers and airports
+
+```{r}
+table(flights[,c("origin","carrier")])
+```
+
+But just to know the number of different carriers for each airport.
+
+```{r}
+length(table(flights$carrier[flights$origin == "EWR"]))
+length(table(flights$carrier[flights$origin == "JFK"]))
+length(table(flights$carrier[flights$origin == "LGA"]))
+```
+
+As long as the number of different carriers is stated it's worth full marks. 
+
+5. Two dataframes by row.
+
+```{r}
+N <- nrow(flights)
+frame1 <- flights[sample(1:N,100),]
+frame2 <- flights[sample(1:N,100),]
+two.frames <- rbind(frame1,frame2)
+head(two.frames)
+```
+
+6. scatterplot of airports and timezone
+
+```{r}
+library(ggplot2)
+data(airports)
+
+ggplot(airports) + geom_point(aes(x = airports$lon, y = airports$lat, color = tzone))
+```
+
+Using color = tz would be fine as well although using tzone probably makes it clearer.
+
+6. Bar-chart of airline carrier and origin.  
+
+Most straight-forward would be
+
+```{r}
+ggplot(flights) + geom_bar(aes(x = carrier,fill = origin))
+```
+However using one that shows percentage of each airport could work too.
+
+```{r}
+ggplot(flights) + geom_bar(aes(x = carrier,fill = origin),position="dodge")
+```
+
+Any other suitable bar-charts showing carrier and origin would be okay - e.g. using 'dodge'.
+
+8. Box and violin plots.  These don't show up that well for such a large dataset.  A sample could be used instead, or values below a given delay - but all approaches fine as long as the box plot is produced.
+
+
+```{r}
+ggplot(flights[flights$dep_delay < 25,]) + stat_boxplot(aes(x = origin,y = dep_delay))
+```
+```{r}
+ggplot(flights[sample(1:10000,100),]) + geom_violin(aes(x = origin,y = dep_delay))
+```
+
+```{r}
+ggplot(flights[flights$arr_delay < 100,]) + stat_boxplot(aes(x = origin,y = arr_delay))
+```
+
+```{r}
+ggplot(flights[sample(1:10000,100),]) + geom_violin(aes(x = origin,y = arr_delay))
+```
+
+9. Correlation between departure and arrival delay.
+
+```{r}
+ggplot(flights) + geom_point(aes(x = dep_delay,y=arr_delay,color = origin))
+```
+
+From the scatterplot it looks essentially linear except for the lower values - where there seems to be a lot more variation for the arrival delays. 
+
+# 2 Data Wrangling
+
+1. Is just to load the data.
+
+```{r}
+hospitals_csv <- read.csv("http://bit.ly/2nkCUEh")
+weather_csv <- read.csv("Perth_Rainfall_Temp.csv")
+```
+
+```{r}
+head(hospitals_csv)
+```
+
+```{r}
+head(weather_csv)
+```
+
+2. Merging together information from three hospitals.
+
+The hospitals data is organised with multiple columns for each hospital.  We mainly want it to display information about which hospital it is as one of the columns.
+
+The following grabs the data for the first three hospitals, removing that first row.
+
+```{r}
+hospital.1 <- data.frame(hospitals_csv[-1,c(1:8)])
+hospital.2 <- data.frame(hospitals_csv[-1,c(1,9:15)])
+hospital.3 <- data.frame(hospitals_csv[-1,c(1,16:22)])
+```
+
+We can then add an extra column indicating the hospital name.
+
+```{r}
+hospital.1$Hospital <- names(hospitals_csv)[2]
+hospital.2$Hospital <- names(hospitals_csv)[9]
+hospital.3$Hospital <- names(hospitals_csv)[16]
+```
+
+Update the names of the columns
+
+```{r}
+colnames(hospital.1) <- c("Date","Admissions","Attendance","tri1","tri2","tri3","tri4","tri5","Hospital")
+colnames(hospital.2) <- c("Date","Admissions","Attendance","tri1","tri2","tri3","tri4","tri5","Hospital")
+colnames(hospital.3) <- c("Date","Admissions","Attendance","tri1","tri2","tri3","tri4","tri5","Hospital")
+```
+
+Merge the hospitals together
+
+```{r}
+hospitals.df <- rbind(hospital.1,hospital.2,hospital.3)
+head(hospitals.df)
+```
+
+Now add the weather.  Assuming we have no missing days, we can just repeat the rainfall and temp columns 3 times - it will automatically repeat the vector to fill (we could have also added this to the hospitals before we stacked them).
+
+```{r}
+head(weather_csv)
+```
+
+```{r}
+hospitals.df$Rainfall <- weather_csv$Rainfall
+hospitals.df$Temp <- weather_csv$Temp
+```
+
+```{r}
+dim(hospitals.df)
+```
+
+# 3 EDA for hospitals and weather
+
+(i) Compare the three hospitals in terms of the distribution of ED attendances.  Most straightforward tools for comparing distributions is using parallel boxplots or overlapping histograms might be useful too.
+
+For boxplots/histograms to work, we need to make sure our dataframe is in the right format.
+
+```{r}
+hospitals.df$Attendance <- as.numeric(hospitals.df$Attendance)
+```
+
+```{r}
+ggplot(hospitals.df) + geom_boxplot(aes(x = Hospital,y=Attendance))
+```
+
+```{r}
+ggplot(hospitals.df) + geom_histogram(aes(x = Attendance,fill = Hospital),alpha = 0.5,position = "identity",bins=40)
+```
+
+Main features to note - Attendances at Princess Margaret hospital are generally higher than the othr two hospitals.  Fremantle is higher than at Royal Perth.  Looking at the histograms we can see that all three distributions are bimodal - maybe because there are high attendances on particular days. 
+
+(ii) qqplot
+
+```{r}
+ggplot(hospitals.df[hospitals.df$Hospital == "Royal.Perth.Hospital",]) + geom_qq(aes(sample=Attendance))
+```
+
+Clearly not normally distributed (as established looking at the histograms.)
+
+We can look at other hospitals or maybe divide our data to see if the higher cluster is normally distributed.
+
+```{r}
+hospital.1$Attendance <- as.numeric(hospital.1$Attendance)
+ggplot(hospital.1[hospital.1$Attendance > 30,]) + geom_qq(aes(sample=Attendance))
+```
+Looks better - still a little top heavy. 
+
+(iii) correlation between weather and ED
+
+Have a quick look at Admissions and ATtendance
+
+```{r}
+ggplot(hospitals.df) + geom_point(aes(x = Rainfall,y = Admissions,color = Hospital))
+```
+
+
+```{r}
+ggplot(hospitals.df) + geom_point(aes(x = Rainfall,y = Attendance,color = Hospital))
+```
+
+```{r}
+ggplot(hospitals.df) + geom_point(aes(x = Temp,y = Admissions,color = Hospital))
+```
+
+```{r}
+ggplot(hospitals.df) + geom_point(aes(x = Temp,y = Attendance,color = Hospital))
+```
+
+For Fremantle and Royal Perth there does seem to be a general trend between Admissions and Temp - Look at these two by themselves.
+
+```{r}
+ggplot(hospitals.df[hospitals.df$Hospital == "Royal.Perth.Hospital",]) + geom_point(aes(x = Temp,y = Admissions))
+```
+
+```{r}
+ggplot(hospitals.df[hospitals.df$Hospital == "Fremantle.Hospital",]) + geom_point(aes(x = Temp,y = Admissions))
+```
+
+Although fairly varied it does seem like higher temperatures can result in higher admissions.
